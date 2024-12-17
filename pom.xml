@@ -68,7 +68,7 @@
                         <id>default-cli</id>
                         <configuration>
                             <mainClass>
-                                com.example.powerflowcontroller/com.example.powerflowcontroller.HelloApplication
+                                com.example.powerflowcontroller/com.example.powerflowcontroller.Main
                             </mainClass>
                             <launcher>app</launcher>
                             <jlinkZipName>app</jlinkZipName>

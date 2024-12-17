@@ -88,7 +88,7 @@ public class Main extends Application {
     ComboBox<String> change1, change2, change3;
     RadioMenuItem userItem;
     private Button sendButton, serverSend, stateInfo, logStart, refresh, addStep, deleteStep, editStep, execute;
-    private ImageView image1;
+    private ImageView image1; // Глобальная переменная, инициализируем один раз
     private double stepTimeCounter;
     private int voltageToSet;
 
@@ -110,13 +110,16 @@ public class Main extends Application {
         client.getItems().addAll(clientConnect);
         MenuItem connectModular = new MenuItem("Connect modular");
         menuConnection.getItems().addAll(server, client, connectModular);
+
         Menu menuSaveRead = new Menu("Save/Read");
         MenuItem save = new MenuItem("Save");
         MenuItem read = new MenuItem("Read");
         MenuItem saveConfiguration = new MenuItem("Save configuration");
         MenuItem readConfiguration = new MenuItem("Read configuration");
         menuSaveRead.getItems().addAll(save, read, saveConfiguration, readConfiguration);
+
         config = new Configuration();
+
         Menu menuParameters = new Menu("Parameters");
         Menu uMenu = new Menu("U");
         u1 = new CheckMenuItem("U 1");
@@ -130,6 +133,7 @@ public class Main extends Application {
         u9 = new CheckMenuItem("U 9");
         u10 = new CheckMenuItem("U 10");
         uMenu.getItems().addAll(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10);
+
         Menu iMenu = new Menu("I");
         i1 = new CheckMenuItem("I 1");
         i2 = new CheckMenuItem("I 2");
@@ -142,7 +146,9 @@ public class Main extends Application {
         i9 = new CheckMenuItem("I 9");
         i10 = new CheckMenuItem("I 10");
         iMenu.getItems().addAll(i1, i2, i3, i4, i5, i6, i7, i8, i9, i10);
+
         menuParameters.getItems().addAll(uMenu, iMenu);
+
         Menu menuScale = new Menu("Scale");
         Menu setScaleX = new Menu("Set Scale X");
         MenuItem t10m = new MenuItem("10 мин");
@@ -154,6 +160,7 @@ public class Main extends Application {
         setScaleX.getItems().addAll(t10m, t30m, t1h, t2h, t4h, t8h);
         MenuItem setScaleY = new MenuItem("Set Scale Y");
         menuScale.getItems().addAll(setScaleX, setScaleY);
+
         Menu menuMode = new Menu("Mode");
         adminItem = new RadioMenuItem("Admin");
         userItem = new RadioMenuItem("User");
@@ -162,6 +169,7 @@ public class Main extends Application {
         userItem.setToggleGroup(modeGroup);
         adminItem.setSelected(true);
         menuMode.getItems().addAll(adminItem, userItem);
+
         Menu menuAlgorithm = new Menu("Algorithm");
         createNew = new MenuItem("Create new");
         saveAlg = new MenuItem("Save");
@@ -175,6 +183,7 @@ public class Main extends Application {
         MenuItem restartAlg = new MenuItem("Restart algorithm");
         MenuItem numberOfSource = new MenuItem("Number of source");
         menuAlgorithm.getItems().addAll(createNew, edit, saveAlg, readAlg, modeAlg, startStop, restartAlg, numberOfSource);
+
         Menu menuPowerSupply = new Menu("Power Supply");
         Menu suppliers = new Menu("Suppliers");
         MenuItem one = new MenuItem("1");
@@ -184,6 +193,7 @@ public class Main extends Application {
         MenuItem executePowerSupply = new MenuItem("Execute");
         menuPowerSupply.getItems().addAll(suppliers, executePowerSupply);
         menuBar.getMenus().addAll(menuConnection, menuSaveRead, menuParameters, menuScale, menuMode, menuAlgorithm, menuPowerSupply);
+
         measureName = new TextField();
         edit1 = new TextField("1");
         requestText = new TextField("");
@@ -208,6 +218,7 @@ public class Main extends Application {
         Label dateStrt = new Label("56");
         HBox buttonRow = new HBox(10);
         buttonRow.getChildren().addAll(stateInfo, logStart, refresh);
+
         GridPane gridPane = new GridPane();
         gridPane.setHgap(10);
         gridPane.setVgap(10);
@@ -369,7 +380,7 @@ public class Main extends Application {
         readConfiguration.setOnAction(e -> readConfigurationClick());
         createNew.setOnAction(e -> createNewAlgorithm());
         saveAlg.setOnAction(e -> saveAlgorithm());
-        readAlg.setOnAction(e -> read2Click("default_algorithm.txt"));
+        readAlg.setOnAction(e -> readAlgorithmWithCheck(null)); // При запуске без аргумента открыть диалог
         edit.setOnAction(e -> edit2Click());
         auto.setOnAction(e -> auto1Click());
         manual.setOnAction(e -> {
@@ -501,12 +512,13 @@ public class Main extends Application {
 
     private int algorithmImpact(int step) {
         JSONObject stepObj=stepsArray.getJSONObject(step);
+        int stepNumber = stepObj.getInt("number");
         String act=stepObj.getString("action");
         String ch1=stepObj.getString("change1");
         String ch2=stepObj.getString("change2");
         String ch3=stepObj.getString("change3");
         String command="IPX";
-        int nextStep=stepObj.getInt("number")-1;
+        int nextStep= stepNumber - 1;
 
         if (act.startsWith("SET")) {
             String paramType=act.substring(3,4);
@@ -550,7 +562,7 @@ public class Main extends Application {
                 nextStep=extractNextStep(ch1,ch2,ch3);
                 startOfStep=System.currentTimeMillis();
             } else {
-                nextStep=stepObj.getInt("number")-1;
+                nextStep= stepNumber - 1;
             }
         }
         commandSender(command);
@@ -621,6 +633,22 @@ public class Main extends Application {
                     File logFile = new File("logfile.txt");
                     if (logFile.exists()) {
                         history.appendText("Файл логов успешно прочитан!\n");
+                        try (BufferedReader br = new BufferedReader(new FileReader(logFile))) {
+                            String line;
+                            int idx=0;
+                            while ((line=br.readLine())!=null && idx<86401) {
+                                String[] parts=line.split("\\s+");
+                                if (parts.length>1) {
+                                    log1[idx].time=Double.parseDouble(parts[0]);
+                                    for (int k=1;k<parts.length && k<=20;k++){
+                                        log1[idx].data[k-1]=Double.parseDouble(parts[k]);
+                                    }
+                                    idx++;
+                                }
+                            }
+                        } catch (IOException ex) {
+                            showMessage("Ошибка при чтении лога");
+                        }
                     }
                 }
             } else if (logStart.getText().equals("Log stop")&&(isTimer1Running||isTimer2Running)){
@@ -672,10 +700,9 @@ public class Main extends Application {
     public void edit2Click() {
     }
 
-    public void read2Click(String defaultName) {
+    public void readAlgorithmWithCheck(String defaultName) {
         String nameOfFile;
         String jsonString="";
-        FileChooser fileChooser=new FileChooser();
         if (defaultName==null||defaultName.isEmpty()) {
             File selectedFile=fileChooser.showOpenDialog(new Stage());
             if (selectedFile!=null) {
@@ -694,6 +721,7 @@ public class Main extends Application {
         } catch (IOException e) {
             e.printStackTrace();
         }
+
         jsonAlgorithm=new JSONObject(jsonString);
         stepsArray=jsonAlgorithm.getJSONArray("steps");
         double k_y_19=image1.getFitHeight()/stepsArray.length();
@@ -702,9 +730,11 @@ public class Main extends Application {
         nameOfALG.setText(jsonAlgorithm.getString("name"));
         for (int i=0;i<stepsArray.length();i++){
             JSONObject step=stepsArray.getJSONObject(i);
-            numberofstep.getItems().add(Integer.toString(i+1));
+            // Предполагается, что поле "number" в json теперь Int
+            int stepNum=step.getInt("number");
+            numberofstep.getItems().add(Integer.toString(stepNum));
             stringgrid1.getItems().add(new StepData(
-                    String.valueOf(step.getInt("number")),
+                    String.valueOf(stepNum),
                     step.getString("action"),
                     step.getString("change1"),
                     step.getString("change2"),
@@ -712,6 +742,10 @@ public class Main extends Application {
             ));
         }
         k_y[19]=k_y_19;
+    }
+
+    public void read2Click(String defaultName) {
+        readAlgorithmWithCheck(defaultName);
     }
 
     public void saveAlgorithm() {
@@ -836,6 +870,7 @@ public class Main extends Application {
             String host=clientIP.getText();
             idtcpClient1=new Socket();
             idtcpClient1.connect(new InetSocketAddress(host,port),3000);
+            // Используем хост из поля клиентIP также для подключения к модулятору
             powerClient=new Socket(host,45644);
             history.appendText("Client connected to server at "+host+":"+port+"\n");
             clientConnect.setDisable(true);
@@ -877,12 +912,13 @@ public class Main extends Application {
 
     private void modulatorClick() {
         try {
+            String host=clientIP.getText();
             if (powerClient!=null&&powerClient.isConnected()&&idtcpClient1!=null&&idtcpClient1.isConnected() &&
                     powerClient.getInetAddress()!=null&&idtcpClient1.getInetAddress()!=null &&
                     powerClient.getInetAddress().equals(idtcpClient1.getInetAddress())) {
                 powerClient.close();
                 powerClient=new Socket();
-                powerClient.connect(new InetSocketAddress(clientIP.getText(),45644),3000);
+                powerClient.connect(new InetSocketAddress(host,45644),3000);
                 clientConnect.setDisable(false);
                 clientDisconnect.setDisable(true);
                 if (timer3!=null) timer3.cancel();
@@ -894,7 +930,7 @@ public class Main extends Application {
                 history.appendText("Clients merged!\n");
             } else {
                 powerClient=new Socket();
-                powerClient.connect(new InetSocketAddress(clientIP.getText(),45644),3000);
+                powerClient.connect(new InetSocketAddress(host,45644),3000);
                 if (powerClient.isConnected()) {
                     history.appendText("Modulator: Connected\n");
                 }
